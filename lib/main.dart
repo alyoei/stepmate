@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_core/firebase_core.dart'; 
+import 'package:app_stepmate/screens/splash_screen.dart';
+import 'package:app_stepmate/screens/login_screen.dart';
+import 'package:app_stepmate/screens/register_screen.dart';
+import 'package:app_stepmate/screens/home_screen.dart';
 
-// Import halaman-halaman yang sudah kita buat sebelumnya
-import 'screens/splash_screen.dart';
-import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
+
 
 void main() async {
-  // Memastikan binding Flutter siap sebelum inisialisasi Firebase
+  
   WidgetsFlutterBinding.ensureInitialized();
+  
   
   try {
     await Firebase.initializeApp();
   } catch (e) {
-    print("Firebase Error: $e");
+    print("Firebase inisialisasi dilewati atau error: $e");
   }
 
   runApp(StepMateApp());
@@ -24,26 +26,39 @@ class StepMateApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'StepMate Navigation',
+      title: 'StepMate Indoor Navigation',
       debugShowCheckedModeBanner: false,
       
-      // Tema Premium: Deep Navy & Blue Accent
+     
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0F172A),
         primaryColor: Colors.blueAccent,
+        
+       
         textTheme: GoogleFonts.poppinsTextTheme(
           ThemeData.dark().textTheme,
+        ).apply(
+          bodyColor: Colors.white,
+          displayColor: Colors.white,
         ),
+        
         colorScheme: ColorScheme.dark(
           primary: Colors.blueAccent,
-          secondary: Colors.blueAccent.withOpacity(0.7),
+          secondary: Colors.blueAccent.withOpacity(0.8),
           surface: const Color(0xFF1E293B),
         ),
       ),
-      
-      // Jalur navigasi awal dimulai dari Splash Screen
+
+     
       home: SplashScreen(),
+
+      
+      routes: {
+        '/login': (context) => LoginScreen(),
+        '/register': (context) => RegisterScreen(),
+        '/home': (context) => HomeScreen(),
+      },
     );
   }
 }

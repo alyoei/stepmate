@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'home_screen.dart';
-import 'register_screen.dart'; 
 
-class LoginScreen extends StatelessWidget {
+class RegisterScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      
       body: Container(
         height: MediaQuery.of(context).size.height,
         width: MediaQuery.of(context).size.width,
@@ -23,9 +20,24 @@ class LoginScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(height: 100),
+              SizedBox(height: 80),
               
+             
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+                ),
+              ),
               
+              SizedBox(height: 30),
+              
+              // Header
               Container(
                 height: 5,
                 width: 40,
@@ -36,7 +48,7 @@ class LoginScreen extends StatelessWidget {
               ),
               SizedBox(height: 20),
               Text(
-                "Selamat Datang", 
+                "Buat Akun", 
                 style: GoogleFonts.poppins(
                   fontSize: 32, 
                   fontWeight: FontWeight.bold, 
@@ -45,36 +57,27 @@ class LoginScreen extends StatelessWidget {
                 )
               ),
               Text(
-                "Silakan masuk untuk melanjutkan navigasi Anda", 
+                "Mulai langkah baru Anda bersama StepMate", 
                 style: GoogleFonts.poppins(
                   color: Colors.white60, 
                   fontSize: 15,
-                  height: 1.5
                 )
               ),
               
-              SizedBox(height: 50),
+              SizedBox(height: 40),
               
               // Input Fields
+              _buildTextField("Nama Lengkap", Icons.person_outline),
+              SizedBox(height: 20),
               _buildTextField("Email", Icons.email_outlined),
               SizedBox(height: 20),
               _buildTextField("Password", Icons.lock_outline, isObscure: true),
+              SizedBox(height: 20),
+              _buildTextField("Konfirmasi Password", Icons.lock_reset_outlined, isObscure: true),
+              
+              SizedBox(height: 40),
               
               
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {},
-                  child: Text(
-                    "Lupa Password?", 
-                    style: GoogleFonts.poppins(color: Colors.blueAccent, fontSize: 13)
-                  ),
-                ),
-              ),
-              
-              SizedBox(height: 30),
-              
-             
               Container(
                 width: double.infinity,
                 height: 60,
@@ -94,9 +97,20 @@ class LoginScreen extends StatelessWidget {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                     elevation: 0,
                   ),
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HomeScreen())),
+                  onPressed: () {
+                    
+                    
+                    // Setelah sukses, kembali ke halaman login
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Akun berhasil dibuat! Silakan masuk."),
+                        backgroundColor: Colors.blueAccent,
+                      ),
+                    );
+                    Navigator.pop(context);
+                  },
                   child: Text(
-                    "MASUK SEKARANG", 
+                    "DAFTAR SEKARANG", 
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.bold, 
                       color: Colors.white, 
@@ -106,42 +120,37 @@ class LoginScreen extends StatelessWidget {
                 ),
               ),
               
-              SizedBox(height: 40),
+              SizedBox(height: 30),
               
-              
+             
               Center(
-                child: Column(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      "Belum punya akun?",
+                      "Sudah punya akun? ",
                       style: GoogleFonts.poppins(color: Colors.white54, fontSize: 14),
                     ),
-                    TextButton(
-                      onPressed: () {
-                        // Navigasi ke Halaman Register
-                        // Navigator.push(context, MaterialPageRoute(builder: (context) => RegisterScreen()));
-                        print("Pindah ke halaman Register");
-                      },
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
                       child: Text(
-                        "Daftar Sekarang",
+                        "Masuk",
                         style: GoogleFonts.poppins(
-                          color: Colors.white, 
+                          color: Colors.blueAccent, 
                           fontWeight: FontWeight.bold,
-                          decoration: TextDecoration.underline,
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-              SizedBox(height: 20),
+              SizedBox(height: 40),
             ],
           ),
         ),
       ),
     );
   }
-
 
   Widget _buildTextField(String label, IconData icon, {bool isObscure = false}) {
     return Container(
@@ -159,7 +168,6 @@ class LoginScreen extends StatelessWidget {
           labelText: label,
           labelStyle: GoogleFonts.poppins(color: Colors.white38),
           border: InputBorder.none,
-          hintStyle: TextStyle(color: Colors.white24),
         ),
       ),
     );
