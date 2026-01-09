@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "797977496112",
+    "project_id": "appstepmate-b53c6",
+    "storage_bucket": "appstepmate-b53c6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:797977496112:android:e80464e103e56a4ebe7bf5",
+        "android_client_info": {
+          "package_name": "com.example.app_stepmate"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-0Tw-umeaNqco6tkdFqM9SKSeBjLR2fA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
