@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt; 
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:firebase_auth/firebase_auth.dart'; 
 import 'navigation_screen.dart';
-import 'profile_screen.dart'; 
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -12,9 +13,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   FlutterTts tts = FlutterTts();
-  stt.SpeechToText speech = stt.SpeechToText(); 
+  stt.SpeechToText speech = stt.SpeechToText();
   bool isListening = false;
   String wordsSpoken = "";
+  
+ 
+  User? user = FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
@@ -25,7 +29,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   _initTTS() async {
     await tts.setLanguage("id-ID");
-    await tts.speak("Halaman utama. Ketuk tombol besar di tengah untuk mulai mencari tujuan dengan suara.");
+    
+    String nama = user?.displayName ?? "Pengguna";
+    await tts.speak("Halo $nama, selamat datang di Halaman utama. Ketuk tombol besar di tengah untuk mulai mencari tujuan.");
   }
 
   _initSpeech() async {
@@ -64,7 +70,8 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => isListening = false);
     
     if (command.isNotEmpty) {
-      await tts.speak("Mencari sinyal menuju $command. Sinyal ditemukan. Membuka navigasi.");
+      
+      await tts.speak("Mencari rute menuju $command. Rute ditemukan. Membuka navigasi.");
       
       Future.delayed(Duration(seconds: 2), () {
         if (mounted) {
@@ -81,6 +88,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    
+    String firstName = user?.displayName?.split(' ')[0] ?? "User";
+
     return Scaffold(
       backgroundColor: Color(0xFF0F172A),
       body: Container(
@@ -103,7 +113,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text("Halo, Alya", 
+                      
+                        Text("Halo, $firstName", 
                           style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
                         Text("StepMate siap memandu Anda", 
                           style: GoogleFonts.poppins(color: Colors.blueAccent, fontSize: 14, fontWeight: FontWeight.w500)),
@@ -126,7 +137,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: CircleAvatar(
                           radius: 25,
                           backgroundColor: Color(0xFF1E293B),
-                          child: Icon(Icons.person, color: Colors.white),
+                          
+                          backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
+                          child: user?.photoURL == null ? Icon(Icons.person, color: Colors.white) : null,
                         ),
                       ),
                     )
@@ -198,6 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 Spacer(),
                 
+                
                 Container(
                   padding: EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -207,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   child: Column(
                     children: [
-                      _buildQuickAction(Icons.history, "Tujuan Terakhir: Lobby"),
+                      _buildQuickAction(Icons.history, "Tujuan Terakhir: Menunggu Data..."),
                       Divider(color: Colors.white10),
                       _buildQuickAction(Icons.star_border_rounded, "Simpan Lokasi Baru"),
                     ],
@@ -222,6 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+ 
   Widget _buildPulseEffect(bool isActive) {
     if (!isActive) return SizedBox();
     return TweenAnimationBuilder(

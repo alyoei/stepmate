@@ -6,8 +6,6 @@ import 'package:app_stepmate/screens/login_screen.dart';
 import 'package:app_stepmate/screens/register_screen.dart';
 import 'package:app_stepmate/screens/home_screen.dart';
 
-
-
 void main() async {
   
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,8 +13,9 @@ void main() async {
   
   try {
     await Firebase.initializeApp();
+    print("✅ Firebase inisialisasi berhasil.");
   } catch (e) {
-    print("Firebase inisialisasi dilewati atau error: $e");
+    print("❌ Firebase inisialisasi error: $e");
   }
 
   runApp(StepMateApp());
@@ -29,19 +28,20 @@ class StepMateApp extends StatelessWidget {
       title: 'StepMate Indoor Navigation',
       debugShowCheckedModeBanner: false,
       
-     
+      
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0F172A),
         primaryColor: Colors.blueAccent,
         
-       
+      
         textTheme: GoogleFonts.poppinsTextTheme(
           ThemeData.dark().textTheme,
         ).apply(
           bodyColor: Colors.white,
           displayColor: Colors.white,
         ),
+        
         
         colorScheme: ColorScheme.dark(
           primary: Colors.blueAccent,
@@ -50,10 +50,10 @@ class StepMateApp extends StatelessWidget {
         ),
       ),
 
-     
+      
       home: SplashScreen(),
 
-      
+   
       routes: {
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),

@@ -1,7 +1,72 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 
-class RegisterScreen extends StatelessWidget {
+class RegisterScreen extends StatefulWidget {
+  @override
+  _RegisterScreenState createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+  bool _isLoading = false;
+
+  
+  Future<void> _register() async {
+    
+    if (_nameController.text.isEmpty || _emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      _showError("Semua kolom harus diisi!");
+      return;
+    }
+
+    if (_passwordController.text != _confirmPasswordController.text) {
+      _showError("Konfirmasi password tidak cocok!");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      
+      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      
+      await userCredential.user?.updateDisplayName(_nameController.text.trim());
+
+      
+      await FirebaseFirestore.instance.collection('users').doc(userCredential.user?.uid).set({
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'total_steps': 0, 
+        'created_at': DateTime.now(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Akun berhasil dibuat! Silakan masuk."), backgroundColor: Colors.green),
+      );
+      
+      Navigator.pop(context); 
+    } on FirebaseAuthException catch (e) {
+      _showError(e.message ?? "Terjadi kesalahan");
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -21,8 +86,6 @@ class RegisterScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(height: 80),
-              
-             
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Container(
@@ -34,10 +97,7 @@ class RegisterScreen extends StatelessWidget {
                   child: Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
                 ),
               ),
-              
               SizedBox(height: 30),
-              
-              // Header
               Container(
                 height: 5,
                 width: 40,
@@ -49,96 +109,54 @@ class RegisterScreen extends StatelessWidget {
               SizedBox(height: 20),
               Text(
                 "Buat Akun", 
-                style: GoogleFonts.poppins(
-                  fontSize: 32, 
-                  fontWeight: FontWeight.bold, 
-                  color: Colors.white,
-                  letterSpacing: 1
-                )
+                style: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
               ),
               Text(
                 "Mulai langkah baru Anda bersama StepMate", 
-                style: GoogleFonts.poppins(
-                  color: Colors.white60, 
-                  fontSize: 15,
-                )
+                style: GoogleFonts.poppins(color: Colors.white60, fontSize: 15),
               ),
-              
               SizedBox(height: 40),
               
-              // Input Fields
-              _buildTextField("Nama Lengkap", Icons.person_outline),
+             
+              _buildTextField("Nama Lengkap", Icons.person_outline, _nameController),
               SizedBox(height: 20),
-              _buildTextField("Email", Icons.email_outlined),
+              _buildTextField("Email", Icons.email_outlined, _emailController),
               SizedBox(height: 20),
-              _buildTextField("Password", Icons.lock_outline, isObscure: true),
+              _buildTextField("Password", Icons.lock_outline, _passwordController, isObscure: true),
               SizedBox(height: 20),
-              _buildTextField("Konfirmasi Password", Icons.lock_reset_outlined, isObscure: true),
+              _buildTextField("Konfirmasi Password", Icons.lock_reset_outlined, _confirmPasswordController, isObscure: true),
               
               SizedBox(height: 40),
-              
               
               Container(
                 width: double.infinity,
                 height: 60,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.blueAccent.withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: Offset(0, 10),
-                    )
-                  ],
-                ),
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                    elevation: 0,
                   ),
-                  onPressed: () {
-                    
-                    
-                    // Setelah sukses, kembali ke halaman login
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text("Akun berhasil dibuat! Silakan masuk."),
-                        backgroundColor: Colors.blueAccent,
+                  onPressed: _isLoading ? null : _register, 
+                  child: _isLoading 
+                    ? CircularProgressIndicator(color: Colors.white)
+                    : Text(
+                        "DAFTAR SEKARANG", 
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.5),
                       ),
-                    );
-                    Navigator.pop(context);
-                  },
-                  child: Text(
-                    "DAFTAR SEKARANG", 
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.bold, 
-                      color: Colors.white, 
-                      letterSpacing: 1.5
-                    )
-                  ),
                 ),
               ),
               
               SizedBox(height: 30),
-              
-             
               Center(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      "Sudah punya akun? ",
-                      style: GoogleFonts.poppins(color: Colors.white54, fontSize: 14),
-                    ),
+                    Text("Sudah punya akun? ", style: GoogleFonts.poppins(color: Colors.white54, fontSize: 14)),
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
                       child: Text(
                         "Masuk",
-                        style: GoogleFonts.poppins(
-                          color: Colors.blueAccent, 
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: GoogleFonts.poppins(color: Colors.blueAccent, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
@@ -152,7 +170,7 @@ class RegisterScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTextField(String label, IconData icon, {bool isObscure = false}) {
+  Widget _buildTextField(String label, IconData icon, TextEditingController controller, {bool isObscure = false}) {
     return Container(
       decoration: BoxDecoration(
         color: Color(0xFF1E293B),
@@ -160,6 +178,7 @@ class RegisterScreen extends StatelessWidget {
         border: Border.all(color: Colors.white.withOpacity(0.05)),
       ),
       child: TextField(
+        controller: controller, 
         obscureText: isObscure,
         style: GoogleFonts.poppins(color: Colors.white),
         decoration: InputDecoration(

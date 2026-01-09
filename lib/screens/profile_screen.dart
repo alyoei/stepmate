@@ -1,7 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'login_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget { 
+  @override
+  _ProfileScreenState createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+
+  User? user = FirebaseAuth.instance.currentUser;
+
+ 
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => LoginScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -24,7 +45,7 @@ class ProfileScreen extends StatelessWidget {
                 SizedBox(height: 40),
                 _buildProfileHeader(),
                 SizedBox(height: 40),
-                _buildStatsSection(),
+                _buildStatsSection(), 
                 SizedBox(height: 40),
                 _buildMenuSection(),
                 SizedBox(height: 50),
@@ -36,7 +57,6 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  // AppBar Custom yang Senada
   Widget _buildAppBar(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -60,12 +80,11 @@ class ProfileScreen extends StatelessWidget {
             letterSpacing: 2,
           ),
         ),
-        SizedBox(width: 40), // Spacing penyeimbang
+        SizedBox(width: 40),
       ],
     );
   }
 
-  // Foto Profil dengan Efek Glow
   Widget _buildProfileHeader() {
     return Column(
       children: [
@@ -95,7 +114,12 @@ class ProfileScreen extends StatelessWidget {
               child: CircleAvatar(
                 radius: 55,
                 backgroundColor: Color(0xFF1E293B),
-                child: Icon(Icons.person, size: 60, color: Colors.white),
+                backgroundImage: user?.photoURL != null 
+                    ? NetworkImage(user!.photoURL!) 
+                    : null,
+                child: user?.photoURL == null 
+                    ? Icon(Icons.person, size: 60, color: Colors.white) 
+                    : null,
               ),
             ),
             Positioned(
@@ -114,29 +138,42 @@ class ProfileScreen extends StatelessWidget {
           ],
         ),
         SizedBox(height: 20),
+       
         Text(
-          "Alya",
+          user?.displayName ?? "Pengguna StepMate",
           style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
         ),
+        
         Text(
-          "Pengguna StepMate Setia",
+          user?.email ?? "email@tidakditemukan.com",
           style: GoogleFonts.poppins(color: Colors.white38, fontSize: 14),
         ),
       ],
     );
   }
 
-  // Statistik (Total Langkah, dll)
   Widget _buildStatsSection() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildStatItem("1.2k", "Langkah"),
-        Container(width: 1, height: 30, color: Colors.white10),
-        _buildStatItem("42", "Tujuan"),
-        Container(width: 1, height: 30, color: Colors.white10),
-        _buildStatItem("Level 5", "Pemandu"),
-      ],
+   
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
+      builder: (context, snapshot) {
+        
+        var steps = "0";
+        if (snapshot.hasData && snapshot.data!.exists) {
+          steps = snapshot.data!.get('total_steps').toString();
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildStatItem(steps, "Langkah"),
+            Container(width: 1, height: 30, color: Colors.white10),
+            _buildStatItem("42", "Tujuan"),
+            Container(width: 1, height: 30, color: Colors.white10),
+            _buildStatItem("Level 1", "Pemandu"),
+          ],
+        );
+      },
     );
   }
 
@@ -149,7 +186,6 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  // Daftar Menu dengan Glassmorphism
   Widget _buildMenuSection() {
     return Container(
       padding: EdgeInsets.all(20),
@@ -168,7 +204,11 @@ class ProfileScreen extends StatelessWidget {
           Divider(color: Colors.white10),
           _buildMenuItem(Icons.help_outline, "Pusat Bantuan"),
           Divider(color: Colors.white10),
-          _buildMenuItem(Icons.logout, "Keluar", color: Colors.redAccent),
+          
+          GestureDetector(
+            onTap: _logout,
+            child: _buildMenuItem(Icons.logout, "Keluar", color: Colors.redAccent),
+          ),
         ],
       ),
     );

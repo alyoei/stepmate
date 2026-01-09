@@ -4,6 +4,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sensors_plus/sensors_plus.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../utils/kalman_filter.dart';
 
@@ -16,38 +17,50 @@ class NavigationScreen extends StatefulWidget {
 }
 
 class _NavigationScreenState extends State<NavigationScreen> with SingleTickerProviderStateMixin {
-  FlutterTts tts = FlutterTts();
-  FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final FlutterTts tts = FlutterTts();
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final FirebaseAuth auth = FirebaseAuth.instance;
 
-  // DOUBLE KALMAN FILTER
+  final KalmanFilter beaconKalman = KalmanFilter(q: 0.01, r: 0.1); 
+  final KalmanFilter accelKalman = KalmanFilter(q: 0.1, r: 0.01);
   
-  KalmanFilter beaconKalman = KalmanFilter();
-  KalmanFilter accelKalman = KalmanFilter();
-  
-  // State Navigasi
-  String currentInstruction = "Mengambil data rute...";
+  String currentInstruction = "Menghubungkan ke database...";
   String lastInstruction = "";
   bool isUsingSensor = false;
   int stepsTaken = 0;
   List<dynamic> remoteRoute = [];
+  bool isArrived = false;
 
-  // Controller & Subscription
   late AnimationController _pulseController;
   StreamSubscription? _beaconSubscription;
   StreamSubscription? _accelSubscription;
+  StreamSubscription? _adapterStateSubscription; 
 
   @override
   void initState() {
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: Duration(seconds: 2),
+      duration: const Duration(seconds: 2),
     )..repeat();
     
+    // Pantau status Bluetooth secara Real-time
+    _monitorBluetoothStatus();
     _fetchRouteFromFirebase();
   }
 
-  // AMBIL DATA DARI FIREBASE (Agar dinamis)
+  
+  void _monitorBluetoothStatus() {
+    _adapterStateSubscription = FlutterBluePlus.adapterState.listen((state) {
+      if (state == BluetoothAdapterState.off) {
+        
+        if (mounted && !isUsingSensor && !isArrived) {
+          _switchToSensorMode();
+        }
+      }
+    });
+  }
+
   void _fetchRouteFromFirebase() async {
     try {
       var doc = await firestore.collection('routes').doc(widget.target.toUpperCase()).get();
@@ -55,130 +68,131 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
       if (doc.exists) {
         setState(() {
           remoteRoute = doc.data()?['steps'] ?? [];
-          currentInstruction = "Mencari Sinyal Beacon...";
+          currentInstruction = "Rute diterima. Mencari sinyal beacon...";
         });
         _initNavigation();
       } else {
-        setState(() => currentInstruction = "Rute tidak ditemukan.");
-        tts.speak("Maaf, rute menuju ${widget.target} belum terdaftar di sistem.");
+        _handleRouteNotFound();
       }
     } catch (e) {
-      setState(() => currentInstruction = "Gagal terhubung ke database.");
+      setState(() => currentInstruction = "Koneksi Error: Periksa Internet");
     }
+  }
+
+  void _handleRouteNotFound() {
+    setState(() => currentInstruction = "Tujuan tidak terdaftar.");
+    _speakInstruction("Maaf, rute menuju ${widget.target} belum tersedia di sistem kami.");
   }
 
   void _initNavigation() async {
     await tts.setLanguage("id-ID");
+    await tts.setPitch(1.0);
     _startScanning();
   }
 
   void _speakInstruction(String text) async {
-    if (text != lastInstruction) {
+    if (text != lastInstruction && text.isNotEmpty) {
       await tts.speak(text);
       lastInstruction = text;
     }
   }
 
-  // --- LOGIKA UTAMA: BEACON DENGAN BEACON-KALMAN ---
   void _startScanning() async {
-    _speakInstruction("Mencari sinyal beacon untuk ${widget.target}. Berjalanlah perlahan.");
+    
+    if (await FlutterBluePlus.adapterState.first == BluetoothAdapterState.off) {
+      _switchToSensorMode();
+      return;
+    }
 
-    FlutterBluePlus.startScan(timeout: Duration(seconds: 5));
+    _speakInstruction("Mencari beacon ${widget.target}. Silakan mulai berjalan.");
+
+    FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
     
     _beaconSubscription = FlutterBluePlus.scanResults.listen((results) {
       for (ScanResult r in results) {
-        // FILTER 1: Menyaring Noise Sinyal Bluetooth
-        double filteredRSSI = beaconKalman.filter(r.rssi.toDouble());
+        if (r.device.platformName.toUpperCase().contains("BEACON") || 
+            r.advertisementData.advName.toUpperCase().contains("STEPMATE")) {
+          
+          double filteredRSSI = beaconKalman.filter(r.rssi.toDouble());
 
-        if (mounted && !isUsingSensor) {
-          setState(() {
-            if (filteredRSSI > -45) {
-              currentInstruction = "Tiba di lokasi. ${widget.target} ada di dekat Anda.";
-            } else if (filteredRSSI > -65) {
-              currentInstruction = "Sinyal kuat. Terus berjalan lurus.";
-            } else {
-              currentInstruction = "Sinyal terdeteksi. Silakan terus maju.";
-            }
-          });
-          _speakInstruction(currentInstruction);
+          if (mounted && !isUsingSensor) {
+            _processBeaconSignal(filteredRSSI);
+          }
         }
       }
     });
 
-    Future.delayed(Duration(seconds: 6), () {
-      if (mounted && (lastInstruction.contains("Mencari") || currentInstruction.contains("Mengkoneksi"))) {
-        _showFallbackDialog();
+    Future.delayed(const Duration(seconds: 12), () {
+      if (mounted && lastInstruction.contains("Mencari") && !isArrived && !isUsingSensor) {
+        _switchToSensorMode();
       }
     });
   }
 
-  // --- LOGIKA PLAN B: SENSOR LANGKAH DENGAN ACCEL-KALMAN ---
-  void _showFallbackDialog() {
-    _speakInstruction("Sinyal Beacon tidak ditemukan. Gunakan mode sensor langkah?");
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Color(0xFF1E293B),
-        title: Text("Sinyal Lemah", style: GoogleFonts.poppins(color: Colors.white)),
-        content: Text("Beacon tidak terdeteksi. Gunakan sensor langkah kaki?", 
-          style: GoogleFonts.poppins(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context), 
-            child: Text("Batal", style: TextStyle(color: Colors.redAccent))
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _startStepNavigation();
-            },
-            child: Text("Ya, Gunakan Sensor"),
-          ),
-        ],
-      ),
-    );
+  void _processBeaconSignal(double rssi) {
+    setState(() {
+      if (rssi > -48) {
+        currentInstruction = "Tiba di lokasi. ${widget.target} tepat di depan Anda.";
+        if (!isArrived) _saveTripToHistory();
+      } else if (rssi > -68) {
+        currentInstruction = "Sinyal kuat. Terus ikuti jalur ini.";
+      } else {
+        currentInstruction = "Sinyal lemah. Coba dekati area tengah ruangan.";
+      }
+    });
+    _speakInstruction(currentInstruction);
   }
 
-  void _startStepNavigation() {
+  void _switchToSensorMode() {
+    
+    if (isUsingSensor) return;
+
+    _speakInstruction("Bluetooth mati atau sinyal lemah. Beralih ke mode sensor langkah.");
     setState(() {
       isUsingSensor = true;
       stepsTaken = 0;
     });
-    
-    _speakInstruction("Mode sensor aktif. Berjalanlah sesuai instruksi suara.");
 
     _accelSubscription = userAccelerometerEvents.listen((event) {
-      // Hitung percepatan total
-      double rawAcceleration = event.x.abs() + event.y.abs() + event.z.abs();
-      
-      // FILTER 2: Menyaring getaran tangan yang bukan langkah kaki
-      double cleanAcceleration = accelKalman.filter(rawAcceleration);
+      double magnitude = event.x.abs() + event.y.abs() + event.z.abs();
+      double cleanAcc = accelKalman.filter(magnitude);
 
-      // Deteksi hentakan kaki pada data yang sudah "bersih"
-      // Angka 3.2 biasanya paling pas setelah difilter Kalman
-      if (cleanAcceleration > 3.2) {
+      if (cleanAcc > 3.2) {
         setState(() {
           stepsTaken++;
-          _updateStepInstruction();
+          _matchStepToRoute();
         });
       }
     });
   }
 
-  void _updateStepInstruction() {
+  void _matchStepToRoute() {
     if (remoteRoute.isEmpty) return;
 
-    for (var point in remoteRoute) {
+    for (var stepData in remoteRoute) {
+      int triggerStep = int.tryParse(stepData['step'].toString()) ?? 0;
       
-      int targetStep = point['step'] is int ? point['step'] : int.parse(point['step'].toString());
-      
-      if (stepsTaken == targetStep) {
-        setState(() {
-          currentInstruction = point["msg"];
-        });
+      if (stepsTaken == triggerStep) {
+        setState(() => currentInstruction = stepData["msg"]);
         _speakInstruction(currentInstruction);
+        
+        if (currentInstruction.toLowerCase().contains("tiba")) {
+          _saveTripToHistory();
+        }
       }
+    }
+  }
+
+  void _saveTripToHistory() async {
+    isArrived = true;
+    final user = auth.currentUser;
+    if (user != null) {
+      await firestore.collection('users').doc(user.uid).collection('history').add({
+        'destination': widget.target,
+        'mode': isUsingSensor ? 'Sensor' : 'Beacon',
+        'total_steps': stepsTaken,
+        'date': FieldValue.serverTimestamp(),
+      });
     }
   }
 
@@ -187,6 +201,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     FlutterBluePlus.stopScan();
     _beaconSubscription?.cancel();
     _accelSubscription?.cancel();
+    _adapterStateSubscription?.cancel(); 
     _pulseController.dispose();
     super.dispose();
   }
@@ -194,142 +209,128 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
+      backgroundColor: const Color(0xFF020617),
+      body: Stack(
+        children: [
+          _buildBackgroundEffect(),
+          SafeArea(
+            child: Column(
+              children: [
+                const SizedBox(height: 50),
+                _buildHeader(),
+                const Spacer(),
+                _buildCentralIcon(),
+                if (isUsingSensor) _buildStepCounter(),
+                const Spacer(),
+                _buildInstructionCard(),
+                const SizedBox(height: 30),
+                _buildStopButton(),
+                const SizedBox(height: 40),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackgroundEffect() {
+    return Positioned(
+      top: -100,
+      child: Container(
+        width: MediaQuery.of(context).size.width,
+        height: 400,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0F172A), Color(0xFF020617)],
-          ),
+          shape: BoxShape.circle,
+          color: Colors.blueAccent.withOpacity(0.05),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              SizedBox(height: 40),
-              Text(
-                isUsingSensor ? "MODE SENSOR (KALMAN ON)" : "NAVIGASI BEACON (KALMAN ON)",
-                style: GoogleFonts.poppins(
-                  color: isUsingSensor ? Colors.greenAccent : Colors.blueAccent, 
-                  fontWeight: FontWeight.bold, 
-                  letterSpacing: 2
-                ),
-              ),
-              Text(
-                widget.target.toUpperCase(),
-                style: GoogleFonts.exo2(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white),
-              ),
-              
-              Spacer(),
+      ),
+    );
+  }
 
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  AnimatedBuilder(
-                    animation: _pulseController,
-                    builder: (context, child) {
-                      return Container(
-                        width: 250 * _pulseController.value,
-                        height: 250 * _pulseController.value,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: (isUsingSensor ? Colors.greenAccent : Colors.blueAccent)
-                                .withOpacity(1 - _pulseController.value),
-                            width: 2,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  
-                  Container(
-                    width: 180,
-                    height: 180,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(0xFF1E293B),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (isUsingSensor ? Colors.greenAccent : Colors.blueAccent).withOpacity(0.2), 
-                          blurRadius: 40, 
-                          spreadRadius: 5
-                        )
-                      ],
-                      border: Border.all(color: Colors.white10),
-                    ),
-                    child: Icon(
-                      isUsingSensor ? Icons.directions_walk : Icons.navigation_rounded,
-                      size: 80,
-                      color: isUsingSensor ? Colors.greenAccent : Colors.blueAccent,
-                    ),
-                  ),
-                ],
-              ),
-
-              if (isUsingSensor)
-                Padding(
-                  padding: const EdgeInsets.only(top: 20),
-                  child: Text("LANGKAH TERDETEKSI: $stepsTaken", 
-                    style: GoogleFonts.poppins(color: Colors.white38, fontWeight: FontWeight.bold)),
-                ),
-
-              Spacer(),
-
-              Container(
-                margin: EdgeInsets.symmetric(horizontal: 30),
-                padding: EdgeInsets.all(25),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.white10),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      isUsingSensor ? Icons.auto_graph : Icons.bluetooth_searching, 
-                      color: Colors.blueAccent.withOpacity(0.5), 
-                      size: 20
-                    ),
-                    SizedBox(height: 15),
-                    Text(
-                      currentInstruction,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              SizedBox(height: 40),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: OutlinedButton(
-                  onPressed: () {
-                    tts.speak("Navigasi dihentikan");
-                    Navigator.pop(context);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: Size(double.infinity, 60),
-                    side: BorderSide(color: Colors.redAccent.withOpacity(0.5)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                  child: Text(
-                    "HENTIKAN NAVIGASI",
-                    style: GoogleFonts.poppins(color: Colors.redAccent, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              SizedBox(height: 40),
-            ],
-          ),
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        Text(
+          isUsingSensor ? "MODE SENSOR AKTIF" : "MODE BEACON AKTIF",
+          style: GoogleFonts.poppins(color: isUsingSensor ? Colors.greenAccent : Colors.blueAccent, fontWeight: FontWeight.bold, letterSpacing: 1.5),
         ),
+        const SizedBox(height: 5),
+        Text(
+          widget.target.toUpperCase(),
+          style: GoogleFonts.exo2(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCentralIcon() {
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 220 * _pulseController.value,
+              height: 220 * _pulseController.value,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: (isUsingSensor ? Colors.greenAccent : Colors.blueAccent).withOpacity(1 - _pulseController.value), width: 3),
+              ),
+            ),
+            Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF1E293B),
+                boxShadow: [BoxShadow(color: (isUsingSensor ? Colors.greenAccent : Colors.blueAccent).withOpacity(0.3), blurRadius: 30)],
+              ),
+              child: Icon(isUsingSensor ? Icons.directions_walk : Icons.location_on, size: 70, color: isUsingSensor ? Colors.greenAccent : Colors.blueAccent),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStepCounter() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 25),
+      child: Text("$stepsTaken LANGKAH", style: GoogleFonts.shareTechMono(fontSize: 24, color: Colors.white54)),
+    );
+  }
+
+  Widget _buildInstructionCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 25),
+      padding: const EdgeInsets.all(25),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Text(
+        currentInstruction,
+        textAlign: TextAlign.center,
+        style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w600, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildStopButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40),
+      child: ElevatedButton(
+        onPressed: () => Navigator.pop(context),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.redAccent.withOpacity(0.1),
+          foregroundColor: Colors.redAccent,
+          minimumSize: const Size(double.infinity, 60),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Colors.redAccent)),
+        ),
+        child: Text("BERHENTI", style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
       ),
     );
   }

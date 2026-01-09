@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:firebase_auth/firebase_auth.dart'; 
 import 'login_screen.dart';
+import 'home_screen.dart'; 
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -34,11 +36,28 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     await tts.setLanguage("id-ID");
     await tts.setPitch(1.0);
     await tts.setSpeechRate(0.5); 
-    await tts.speak("Selamat datang di Step Mate. Teman setia navigasi indoor Anda. Mohon tunggu sebentar, kami sedang menyiapkan aplikasi untuk Anda.");
+    await tts.speak("Selamat datang di Step Mate. Teman setia navigasi indoor Anda.");
     
-    await Future.delayed(Duration(seconds: 5));
+    
+    await Future.delayed(Duration(seconds: 4));
+
     if (mounted) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginScreen()));
+      
+      User? user = FirebaseAuth.instance.currentUser;
+
+      if (user != null) {
+        
+        Navigator.pushReplacement(
+          context, 
+          MaterialPageRoute(builder: (context) => HomeScreen())
+        );
+      } else {
+        
+        Navigator.pushReplacement(
+          context, 
+          MaterialPageRoute(builder: (context) => LoginScreen())
+        );
+      }
     }
   }
 
@@ -48,10 +67,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     super.dispose();
   }
 
+ 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-     
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -62,7 +81,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         ),
         child: Stack(
           children: [
-            
             Positioned(
               top: -100,
               right: -100,
@@ -73,15 +91,12 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               left: -50,
               child: _buildCircle(300, Colors.indigo.withOpacity(0.1)),
             ),
-            
-            // Konten Utama
             Center(
               child: FadeTransition(
                 opacity: _fadeAnimation,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                   
                     Container(
                       padding: EdgeInsets.all(25),
                       decoration: BoxDecoration(
@@ -102,8 +117,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       ),
                     ),
                     SizedBox(height: 40),
-                    
-                    
                     Text(
                       "STEPMATE", 
                       style: GoogleFonts.exo2(
@@ -111,15 +124,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         fontWeight: FontWeight.w800, 
                         color: Colors.white, 
                         letterSpacing: 10,
-                        shadows: [
-                          Shadow(color: Colors.black45, offset: Offset(0, 4), blurRadius: 10)
-                        ]
                       ),
                     ),
-                    
                     SizedBox(height: 8),
-                    
-                    
                     Text(
                       "INDOOR NAVIGATION", 
                       style: GoogleFonts.poppins(
@@ -129,10 +136,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         letterSpacing: 4
                       ),
                     ),
-                    
                     SizedBox(height: 60),
-                    
-                    
                     SizedBox(
                       width: 40,
                       height: 2,
