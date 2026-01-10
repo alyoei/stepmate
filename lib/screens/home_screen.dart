@@ -17,7 +17,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool isListening = false;
   String wordsSpoken = "";
   
- 
   User? user = FirebaseAuth.instance.currentUser;
 
   @override
@@ -70,7 +69,6 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => isListening = false);
     
     if (command.isNotEmpty) {
-      
       await tts.speak("Mencari rute menuju $command. Rute ditemukan. Membuka navigasi.");
       
       Future.delayed(Duration(seconds: 2), () {
@@ -88,7 +86,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    
     String firstName = user?.displayName?.split(' ')[0] ?? "User";
 
     return Scaffold(
@@ -113,7 +110,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                      
                         Text("Halo, $firstName", 
                           style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
                         Text("StepMate siap memandu Anda", 
@@ -137,7 +133,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: CircleAvatar(
                           radius: 25,
                           backgroundColor: Color(0xFF1E293B),
-                          
                           backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
                           child: user?.photoURL == null ? Icon(Icons.person, color: Colors.white) : null,
                         ),
@@ -211,7 +206,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 Spacer(),
                 
-                
                 Container(
                   padding: EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -236,7 +230,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
- 
   Widget _buildPulseEffect(bool isActive) {
     if (!isActive) return SizedBox();
     return TweenAnimationBuilder(
@@ -256,6 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+
   Widget _buildQuickAction(IconData icon, String title) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 8),
@@ -263,8 +257,14 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Icon(icon, color: Colors.blueAccent, size: 20),
           SizedBox(width: 15),
-          Text(title, style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
-          Spacer(),
+          Expanded(
+            child: Text(
+              title, 
+              style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14),
+              overflow: TextOverflow.ellipsis, 
+              maxLines: 1, 
+            ),
+          ),
           Icon(Icons.chevron_right, color: Colors.white24),
         ],
       ),
